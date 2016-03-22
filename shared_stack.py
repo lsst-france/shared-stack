@@ -71,29 +71,12 @@ class Product(object):
             return self._versions[version]
 
 
-class RepositoryManager(object):
-    def __init__(self, pkgroot="https://sw.lsstcorp.org/eupspkg/", pattern=r".*"):
-        """
-        Only tags which match regular expression ``pattern`` are recorded.
-        More tags -> slower loading.
-        """
-        self.pkgroot = pkgroot
+class ProductTracker(object):
+    """
+    Track a collection of Products.
+    """
+    def __init__(self):
         self._products = {}
-
-        h = html.parse(urlopen(self.pkgroot + "/tags"))
-        for el in h.findall("./body/pre/a"):
-            if el.text[-5:] == ".list" and re.match(pattern, el.text):
-                u = urlopen(pkgroot + '/tags/' + el.get('href'))
-                for line in u.read().strip().split('\n'):
-                    if "EUPS distribution %s version list" % (el.text[:-5]) in line:
-                        continue
-                    if line.strip()[0] == "#":
-                        continue
-                    product, flavor, version = line.split()
-                    if product not in self._products:
-                        self._products[product] = Product(product)
-                    self._products[product].add_version(version)
-                    self._products[product].add_tag(version, el.text[:-5])
 
     def tags_for_product(self, product_name):
         """
@@ -112,6 +95,58 @@ class RepositoryManager(object):
             for version in versions:
                 results.append((product.name, version))
         return results
+
+    def has_current(self, product_name):
+        """
+        Return True if we have a version of product_name tagged current.
+        """
+        return (product_name in self._products and
+                "current" in self._products[product_name].tags())
+
+    def has_version(self, product_name, version):
+        """
+        Return True if we have the given version of product name.
+        """
+        return (product_name in self._products and
+                version in self._products[product_name].versions())
+
+    def insert(self, product, version, tag):
+        """
+        Add (product, version, tag) to the list of products being tracked.
+        """
+        if product not in self._products:
+            self._products[product] = Product(product)
+        self._products[product].add_version(version)
+        self._products[product].add_tag(version, tag)
+
+
+class RepositoryManager(object):
+    def __init__(self, pkgroot="https://sw.lsstcorp.org/eupspkg/", pattern=r".*"):
+        """
+        Only tags which match regular expression ``pattern`` are recorded.
+        More tags -> slower loading.
+        """
+        self._product_tracker = ProductTracker()
+        self.pkgroot = pkgroot
+
+        h = html.parse(urlopen(self.pkgroot + "/tags"))
+        for el in h.findall("./body/pre/a"):
+            if el.text[-5:] == ".list" and re.match(pattern, el.text):
+                u = urlopen(pkgroot + '/tags/' + el.get('href'))
+                for line in u.read().strip().split('\n'):
+                    if "EUPS distribution %s version list" % (el.text[:-5]) in line:
+                        continue
+                    if line.strip()[0] == "#":
+                        continue
+                    product, flavor, version = line.split()
+                    self._product_tracker.insert(product, version, el.text[:-5])
+
+    def tags_for_product(self, product_name):
+        return self._product_tracker.tags_for_product(product_name)
+
+    def products_for_tag(self, tag):
+        return self._product_tracker.products_for_tag(tag)
+
 
 class StackManager(object):
     """
@@ -136,39 +171,23 @@ class StackManager(object):
             "EUPS_PKGROOT": pkgroot
         }
 
-        self._has_miniconda = False
         self._refresh_products()
 
     def _refresh_products(self):
-        self._products = {}
+        self._product_tracker = ProductTracker()
+
         for line in self._run_cmd("list", "--raw").strip().split('\n'):
             product, version, tags = line.split("|")
-            if product not in self._products:
-                self._products[product] = Product(product)
-            self._products[product].add_version(version)
             for tag in tags.split(":"):
-                if tag in ("current", "setup"):
+                if tag in ("setup"):
                     continue
-                self._products[product].add_tag(version, tag)
+                self._product_tracker.insert(product, version, tag)
 
-    def _check_for_miniconda(self):
-        if self._has_miniconda:
-            # Nothing to do.
-            if self.debug:
-                print "Miniconda already configured."
-            return
-
-        try:
-            version = self.version_from_tag("miniconda2", "current")
-        except subprocess.CalledProcessError:
-            # No current version of Miniconda available.
-            if self.debug:
-                print "Miniconda not available."
-            return
-
-        miniconda_path = os.path.join(self.stack_dir, self.flavor, "miniconda2", version)
-        self.eups_environ["PATH"] = "%s:%s" % (os.path.join(miniconda_path, "bin"), self.eups_environ["PATH"])
-        self._has_miniconda = True
+        # If a current version of miniconda2 is available, add it to our
+        # environment.
+        if self._product_tracker.has_current("miniconda2"):
+            miniconda_path = os.path.join(self.stack_dir, self.flavor, "miniconda2", version)
+            self.eups_environ["PATH"] = "%s:%s" % (os.path.join(miniconda_path, "bin"), self.eups_environ["PATH"])
 
     def _run_cmd(self, cmd, *args):
         to_exec = ['eups', '--nolocks', cmd]
@@ -179,41 +198,27 @@ class StackManager(object):
         return subprocess.check_output(to_exec, env=self.eups_environ)
 
     def conda_install(self, package):
-        self._check_for_miniconda()
-        if not self._has_miniconda:
+        if not self._product_tracker.has_current("miniconda2"):
             print "Miniconda not available; cannot install %s" % (package,)
             return
         subprocess.check_output(["conda", "install", "--yes", package], env=self.eups_environ)
 
-    def installed_tags(self, product_name):
-        product_tags = []
-        for line in self._run_cmd("list", "--raw", product_name).strip().split('\n'):
-            product, version, tags = line.split("|")
-            assert(product == product_name)
-            product_tags.extend(tags.split(":"))
-        return product_tags
+    def tags_for_product(self, product_name):
+        return self._product_tracker.tags_for_product(product_name)
 
     def version_from_tag(self, product_name, tag):
-         product, version, tags = self._run_cmd("list", "--raw", "-t", tag, product_name).strip().split("|")
-         assert(product == product_name)
-         return version
-
-    def declare_current(self, product_name, version):
-        self._run_cmd("declare", "-c", product_name, version) #self.version_from_tag(product_name, tag))
+         for product, version in self._product_tracker.products_for_tag(tag):
+            if product == product_name:
+                return version
 
     def distrib_install(self, product_name, version=None, tag=None):
-        # If there's a version of miniconda installed and declared current,
-        # we'll add that to the environment before installing anything so that
-        # it picks up the appropriate version of Python.
-        if not self._has_miniconda:
-            self._check_for_miniconda()
-
         args = ["install", "--no-server-tags", product_name]
         if version:
             args.append(version)
         if tag:
             args.extend(["-t", tag])
         self._run_cmd("distrib", *args)
+        self._refresh_products()
 
     def add_global_tag(self, tagname):
         startup_path = os.path.join(self.stack_dir, "site", "startup.py")
@@ -221,8 +226,9 @@ class StackManager(object):
             startup_py.write('hooks.config.Eups.globalTags += ["%s"]\n' % (tagname,))
 
     def apply_tag(self, product_name, version, tagname):
-        if product_name in self._products and version in self._products[product_name].versions():
-            self._run_cmd("declare", "-t", tagname, product, version)
+        if self._product_tracker.has_version(product_name, version):
+            self._run_cmd("declare", "-t", tagname, product_name, version)
+            self._product_tracker.insert(product_name, version, tagname)
 
     @staticmethod
     def create_stack(stack_dir, clobber=False, pkgroot="http://sw.lsstcorp.org/eupspkg", python="/usr/bin/python", debug=True):
@@ -254,7 +260,7 @@ class StackManager(object):
 
         sm = StackManager(stack_dir, pkgroot=pkgroot)
         sm.distrib_install("miniconda2", version=MINICONDA2_VERSION)
-        sm.declare_current("miniconda2", MINICONDA2_VERSION)
+        sm.apply_tag("miniconda2", MINICONDA2_VERSION, "current")
         if debug:
             print "Miniconda installed."
         for package in CONDA_PACKAGES:
@@ -273,12 +279,12 @@ if __name__ == "__main__":
 
     # For each product check if it exists in the stack and apply the tag
     sm = StackManager("/ssd/swinbank/stacktest/")
-    sm.add_global_tag("w_2016_10")
+#    sm.add_global_tag("w_2016_10")
     for product, version in rm.products_for_tag("w_2016_10"):
         sm.apply_tag(product, version, "w_2016_10")
-
-
-
+#
+#
+#
 #    for product in PRODUCTS:
 #        print "Considering ", product
 #        available_tags = rm.tags_for_product(product)
