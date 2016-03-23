@@ -82,7 +82,10 @@ class ProductTracker(object):
         """
         Return the set of all tags which contain a product named ``product_name``.
         """
-        return self._products[product_name].tags()
+        try:
+            return self._products[product_name].tags()
+        except KeyError:
+            return set()
 
     def products_for_tag(self, tag):
         """
