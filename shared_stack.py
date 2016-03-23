@@ -181,6 +181,7 @@ class StackManager(object):
         self._product_tracker = ProductTracker()
 
         for line in self._run_cmd("list", "--raw").strip().split('\n'):
+            if line == '': continue
             product, version, tags = line.split("|")
             for tag in tags.split(":"):
                 if tag in ("setup"):
