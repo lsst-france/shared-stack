@@ -113,14 +113,15 @@ class ProductTracker(object):
         return (product_name in self._products and
                 version in self._products[product_name].versions())
 
-    def insert(self, product, version, tag):
+    def insert(self, product, version, tag=None):
         """
         Add (product, version, tag) to the list of products being tracked.
         """
         if product not in self._products:
             self._products[product] = Product(product)
         self._products[product].add_version(version)
-        self._products[product].add_tag(version, tag)
+        if tag:
+            self._products[product].add_tag(version, tag)
 
 
 class RepositoryManager(object):
