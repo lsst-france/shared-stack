@@ -12,6 +12,8 @@ EUPS_VERSION = "2.0.1"
 MINICONDA2_VERSION = "3.19.0.lsst4" # Or most recent?
 CONDA_PACKAGES = ["jupyter"] # In addition to the default LSST install
 PRODUCTS = ["lsst_apps"]
+ROOT = '/ssd/swinbank/shared_stack'
+VERSION_GLOB = r"w_2016_\d\d"
 
 def determine_flavor():
     """
@@ -284,32 +286,34 @@ class StackManager(object):
 
 
 if __name__ == "__main__":
-#    sm = StackManager.create_stack("/ssd/swinbank/stacktest")
-    rm = RepositoryManager(pattern=r"w_2016_10")
-    print rm.products_for_tag("w_2016_10")
 
-    # For each product check if it exists in the stack and apply the tag
-    sm = StackManager("/ssd/swinbank/stacktest/")
-#    sm.add_global_tag("w_2016_10")
-    for product, version in rm.products_for_tag("w_2016_10"):
-        sm.apply_tag(product, version, "w_2016_10")
-#
-#
-#
-#    for product in PRODUCTS:
-#        print "Considering ", product
-#        available_tags = rm.tags_for_product(product)
-#        installed_tags = sm.installed_tags(product)
-#        candidate_tags = available_tags - installed_tags
-#        print candidate_tags
-#    for product in PRODUCTS:
-#        print "Considering ", product
-#        available_tags = rm.tags_for_product(product)
-#        for tag in available_tags:
-#            print "  Installing ", tag
-#            sm.distrib_install(product, tag=tag)
-#            print "  Adding global tag ", tag
-#            sm.add_global_tag(tag)
-#            # Get all products + versions tagged with tag on server
-#            # Figure out which exist on the client
-#            # Apply tag.
+    # If the stack doesn't already exist, create it.
+    if not os.path.exists(ROOT):
+        sm = StackManager.create_stack(ROOT, debug=False)
+    else:
+        sm = StackManager(ROOT, debug=False)
+
+    rm = RepositoryManager(pattern=VERSION_GLOB)
+
+    for product in PRODUCTS:
+        print "Considering %s" % (product,)
+        available_tags = rm.tags_for_product(product)
+        installed_tags = sm.tags_for_product(product)
+        candidate_tags = available_tags - installed_tags
+
+        for tag in candidate_tags:
+            print "  Installing %s tagged %s" % (product, tag)
+            sm.distrib_install(product, tag=tag)
+            if not tag in sm.tags():
+                print "  Adding global tag %s" % (tag,)
+                sm.add_global_tag(tag)
+
+            print "  Applying tag %s" % (tag,)
+            for sub_product, version in rm.products_for_tag(tag):
+                sm.apply_tag(sub_product, version, tag)
+
+        # Tag as current based on lexicographic sort of available tags.
+        current_tag = max(available_tags.intersection(sm.tags_for_product(product)))
+        print "  Marking %s %s as current" % (product, current_tag)
+        for sub_product, version in rm.products_for_tag(current_tag):
+            sm.apply_tag(sub_product, version, "current")
