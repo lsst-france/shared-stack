@@ -233,6 +233,9 @@ class StackManager(object):
         with open(startup_path, "a") as startup_py:
             startup_py.write('hooks.config.Eups.globalTags += ["%s"]\n' % (tagname,))
 
+    def tags(self):
+        return self._run_cmd("tags").split()
+
     def apply_tag(self, product_name, version, tagname):
         if self._product_tracker.has_version(product_name, version):
             self._run_cmd("declare", "-t", tagname, product_name, version)
