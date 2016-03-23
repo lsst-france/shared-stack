@@ -99,12 +99,12 @@ class ProductTracker(object):
                 results.append((product.name, version))
         return results
 
-    def has_current(self, product_name):
+    def current(self, product_name):
         """
-        Return True if we have a version of product_name tagged current.
+        Return the version of product_name which is tagged "current", or None.
         """
-        return (product_name in self._products and
-                "current" in self._products[product_name].tags())
+        if product_name in self._products:
+            return self._products[product_name].versions("current")[0]
 
     def has_version(self, product_name, version):
         """
@@ -189,8 +189,9 @@ class StackManager(object):
 
         # If a current version of miniconda2 is available, add it to our
         # environment.
-        if self._product_tracker.has_current("miniconda2"):
-            miniconda_path = os.path.join(self.stack_dir, self.flavor, "miniconda2", version)
+        miniconda_version = self._product_tracker.current("miniconda2")
+        if miniconda_version:
+            miniconda_path = os.path.join(self.stack_dir, self.flavor, "miniconda2", miniconda_version)
             self.eups_environ["PATH"] = "%s:%s" % (os.path.join(miniconda_path, "bin"), self.eups_environ["PATH"])
 
     def _run_cmd(self, cmd, *args):
@@ -202,7 +203,7 @@ class StackManager(object):
         return subprocess.check_output(to_exec, env=self.eups_environ)
 
     def conda_install(self, package):
-        if not self._product_tracker.has_current("miniconda2"):
+        if not self._product_tracker.current("miniconda2"):
             print "Miniconda not available; cannot install %s" % (package,)
             return
         subprocess.check_output(["conda", "install", "--yes", package], env=self.eups_environ)
