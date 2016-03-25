@@ -1,7 +1,14 @@
+from __future__ import print_function
+
 import os
 import shutil
 from lxml import html
-from urllib2 import urlopen
+try:
+    # Python 3
+    from urllib.request import urlopen
+except ImportError:
+    # Python 2
+    from urllib2 import urlopen
 import re
 import subprocess
 import tarfile
@@ -13,7 +20,7 @@ EUPS_VERSION = "2.0.1"
 MINICONDA2_VERSION = "3.19.0.lsst4" # Or most recent?
 CONDA_PACKAGES = ["jupyter"] # In addition to the default LSST install
 PRODUCTS = ["lsst_apps"]
-ROOT = '/ssd/swinbank/shared_stack'
+ROOT = '/tmp/ssd/swinbank/shared_stack2'
 VERSION_GLOB = r"w_2016_\d\d"
 
 def determine_flavor():
@@ -34,7 +41,7 @@ def determine_flavor():
         else:
             return "Darwin"
     else:
-        raise RuntimeError, ("Unknown flavor: (%s, %s)" % (uname, machine))
+        raise RuntimeError("Unknown flavor: (%s, %s)" % (uname, machine))
 
 
 class Product(object):
@@ -140,7 +147,7 @@ class RepositoryManager(object):
         for el in h.findall("./body/pre/a"):
             if el.text[-5:] == ".list" and re.match(pattern, el.text):
                 u = urlopen(pkgroot + '/tags/' + el.get('href'))
-                for line in u.read().strip().split('\n'):
+                for line in u.read().decode('utf-8').strip().split('\n'):
                     if "EUPS distribution %s version list" % (el.text[:-5]) in line:
                         continue
                     if line.strip()[0] == "#":
@@ -204,15 +211,16 @@ class StackManager(object):
         to_exec = ['eups', '--nolocks', cmd]
         to_exec.extend(args)
         if self.debug:
-            print self.eups_environ
-            print to_exec
-        return subprocess.check_output(to_exec, env=self.eups_environ)
+            print(self.eups_environ)
+            print(to_exec)
+        return subprocess.check_output(to_exec, env=self.eups_environ, universal_newlines=True)
 
     def conda_install(self, package):
         if not self._product_tracker.current("miniconda2"):
-            print "Miniconda not available; cannot install %s" % (package,)
+            print("Miniconda not available; cannot install %s" % (package,))
             return
-        subprocess.check_output(["conda", "install", "--yes", package], env=self.eups_environ)
+        subprocess.check_output(["conda", "install", "--yes", package],
+                                env=self.eups_environ, universal_newlines=True)
 
     def tags_for_product(self, product_name):
         return self._product_tracker.tags_for_product(product_name)
@@ -245,16 +253,12 @@ class StackManager(object):
             self._product_tracker.insert(product_name, version, tagname)
 
     @staticmethod
-    def create_stack(stack_dir, clobber=False, pkgroot="http://sw.lsstcorp.org/eupspkg", python="/usr/bin/python", debug=True):
+    def create_stack(stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg", python="/usr/bin/python", debug=True):
         """
-        Check for existence of ``stack_dir``; refuse to proceed if it exists
-        and ``clobber`` is ``False``. Otherwise, remove it and start again.
-
         ``python`` argument is only used for bootstrapping EUPS: we'll install
         Miniconda for working with the stack.
         """
-        if clobber:
-            shutil.rmtree(stack_dir, ignore_errors=True)
+        # Refuses to proceed if ``stack_dir`` already exists.
         os.makedirs(stack_dir)
 
         # Install EUPS into the stack directory.
@@ -268,7 +272,7 @@ class StackManager(object):
             subprocess.check_output(["./configure", "-prefix=%s/eups" % (stack_dir,), "--with-eups=%s" % (stack_dir,), "--with-python=%s" % (python,)], cwd=os.path.join(eups_build_dir, "eups-%s" % (EUPS_VERSION,)))
             subprocess.check_output(["make", "install"], cwd=os.path.join(eups_build_dir, "eups-%s" % (EUPS_VERSION,)))
             if debug:
-                print "Done installing EUPS %s" % (EUPS_VERSION,)
+                print("Done installing EUPS %s" % (EUPS_VERSION,))
         finally:
             shutil.rmtree(eups_build_dir)
 
@@ -276,18 +280,17 @@ class StackManager(object):
         sm.distrib_install("miniconda2", version=MINICONDA2_VERSION)
         sm.apply_tag("miniconda2", MINICONDA2_VERSION, "current")
         if debug:
-            print "Miniconda installed."
+            print("Miniconda installed.")
         for package in CONDA_PACKAGES:
             sm.conda_install(package)
             if debug:
-                print "Conda package %s installed" % (package,)
+                print("Conda package %s installed" % (package,))
 
         sm.distrib_install("lsst")
         return sm
 
 
 if __name__ == "__main__":
-
     # If the stack doesn't already exist, create it.
     if not os.path.exists(ROOT):
         sm = StackManager.create_stack(ROOT, debug=DEBUG)
@@ -297,24 +300,24 @@ if __name__ == "__main__":
     rm = RepositoryManager(pattern=VERSION_GLOB)
 
     for product in PRODUCTS:
-        print "Considering %s" % (product,)
+        print("Considering %s" % (product,))
         available_tags = rm.tags_for_product(product)
         installed_tags = sm.tags_for_product(product)
         candidate_tags = available_tags - installed_tags
 
         for tag in candidate_tags:
-            print "  Installing %s tagged %s" % (product, tag)
+            print("  Installing %s tagged %s" % (product, tag))
             sm.distrib_install(product, tag=tag)
             if not tag in sm.tags():
-                print "  Adding global tag %s" % (tag,)
+                print("  Adding global tag %s" % (tag,))
                 sm.add_global_tag(tag)
 
-            print "  Applying tag %s" % (tag,)
+            print("  Applying tag %s" % (tag,))
             for sub_product, version in rm.products_for_tag(tag):
                 sm.apply_tag(sub_product, version, tag)
 
         # Tag as current based on lexicographic sort of available tags.
         current_tag = max(available_tags.intersection(sm.tags_for_product(product)))
-        print "  Marking %s %s as current" % (product, current_tag)
+        print("  Marking %s %s as current" % (product, current_tag))
         for sub_product, version in rm.products_for_tag(current_tag):
             sm.apply_tag(sub_product, version, "current")
