@@ -175,15 +175,16 @@ class StackManager(object):
 
         # Generate a minimal working environment for EUPS; best guess without
         # going through setups.sh.
-        self.eups_environ = {
-            "PATH": "%s:/opt/local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" % (os.path.join(stack_dir, "eups", "bin"),),
+        self.eups_environ = os.environ.copy()
+        self.eups_environ.update({
+            "PATH": "%s:%s" % (os.path.join(stack_dir, "eups", "bin"), self.eups_environ['PATH']),
             "EUPS_PATH": stack_dir,
             "EUPS_DIR": os.path.join(stack_dir, "eups"),
             "EUPS_SHELL": "sh",
             "PYTHONPATH": os.path.join(stack_dir, "eups", "python"),
             "SETUP_EUPS": "eups LOCAL:%s -f (none) -Z (none)" % (os.path.join(stack_dir, "eups"),),
             "EUPS_PKGROOT": pkgroot
-        }
+        })
 
         self._refresh_products()
 
