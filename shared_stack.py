@@ -166,7 +166,7 @@ class StackManager(object):
     """
     Convenience class for working with an EUPS product stack installed at ``stack_dir``.
     """
-    def __init__(self, stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg/", debug=True):
+    def __init__(self, stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg/", userdata=None, debug=True):
         self.stack_dir = stack_dir
         self.flavor = determine_flavor()
 
@@ -185,6 +185,8 @@ class StackManager(object):
             "SETUP_EUPS": "eups LOCAL:%s -f (none) -Z (none)" % (os.path.join(stack_dir, "eups"),),
             "EUPS_PKGROOT": pkgroot
         })
+        if userdata:
+            self.eups_environ["EUPS_USERDATA"] = userdata
 
         self._refresh_products()
 
@@ -268,7 +270,7 @@ class StackManager(object):
             self._product_tracker.insert(product_name, version, tagname)
 
     @staticmethod
-    def create_stack(stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg", python="/usr/bin/python", debug=True):
+    def create_stack(stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg", userdata=None, python="/usr/bin/python", debug=True):
         """
         ``python`` argument is only used for bootstrapping EUPS: we'll install
         Miniconda for working with the stack.
@@ -306,11 +308,16 @@ class StackManager(object):
 
 
 if __name__ == "__main__":
+    # We create a temporary directory for the EUPS cache etc. This means we
+    # can run multiple instances of StackManager simultaneously without them
+    # clobbering each other.
+    userdata = tempfile.mkdtemp()
+
     # If the stack doesn't already exist, create it.
     if not os.path.exists(ROOT):
-        sm = StackManager.create_stack(ROOT, debug=DEBUG)
+        sm = StackManager.create_stack(ROOT, userdata=userdata, debug=DEBUG)
     else:
-        sm = StackManager(ROOT, debug=DEBUG)
+        sm = StackManager(ROOT, userdata=userdata, debug=DEBUG)
 
     rm = RepositoryManager(pattern=VERSION_GLOB)
 
@@ -336,3 +343,5 @@ if __name__ == "__main__":
         print("  Marking %s %s as current" % (product, current_tag))
         for sub_product, version in rm.products_for_tag(current_tag):
             sm.apply_tag(sub_product, version, "current")
+
+    shutil.rmtree(userdata)
