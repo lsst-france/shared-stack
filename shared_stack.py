@@ -208,20 +208,34 @@ class StackManager(object):
             miniconda_path = os.path.join(self.stack_dir, self.flavor, "miniconda2", miniconda_version)
             self.eups_environ["PATH"] = "%s:%s" % (os.path.join(miniconda_path, "bin"), self.eups_environ["PATH"])
 
+    @staticmethod
+    def _check_output(*popenargs, **kwargs):
+        # This is the subprocess.check_output() function from Python 2.7+
+        # provided here for compatibility with Python 2.6.
+        process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            if cmd is None:
+                cmd = popenargs[0]
+                raise subprocess.CalledProcessError(retcode, cmd, output=output)
+        return output
+
     def _run_cmd(self, cmd, *args):
         to_exec = ['eups', '--nolocks', cmd]
         to_exec.extend(args)
         if self.debug:
             print(self.eups_environ)
             print(to_exec)
-        return subprocess.check_output(to_exec, env=self.eups_environ, universal_newlines=True)
+        return StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
 
     def conda_install(self, package):
         if not self._product_tracker.current("miniconda2"):
             print("Miniconda not available; cannot install %s" % (package,))
             return
-        subprocess.check_output(["conda", "install", "--yes", package],
-                                env=self.eups_environ, universal_newlines=True)
+        StackManager._check_output(["conda", "install", "--yes", package],
+                                   env=self.eups_environ, universal_newlines=True)
 
     def tags_for_product(self, product_name):
         return self._product_tracker.tags_for_product(product_name)
@@ -270,8 +284,8 @@ class StackManager(object):
         eups_build_dir = tempfile.mkdtemp()
         try:
             tf.extractall(eups_build_dir)
-            subprocess.check_output(["./configure", "-prefix=%s/eups" % (stack_dir,), "--with-eups=%s" % (stack_dir,), "--with-python=%s" % (python,)], cwd=os.path.join(eups_build_dir, "eups-%s" % (EUPS_VERSION,)))
-            subprocess.check_output(["make", "install"], cwd=os.path.join(eups_build_dir, "eups-%s" % (EUPS_VERSION,)))
+            StackManager._check_output(["./configure", "-prefix=%s/eups" % (stack_dir,), "--with-eups=%s" % (stack_dir,), "--with-python=%s" % (python,)], cwd=os.path.join(eups_build_dir, "eups-%s" % (EUPS_VERSION,)))
+            StackManager._check_output(["make", "install"], cwd=os.path.join(eups_build_dir, "eups-%s" % (EUPS_VERSION,)))
             if debug:
                 print("Done installing EUPS %s" % (EUPS_VERSION,))
         finally:
