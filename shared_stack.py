@@ -8,6 +8,7 @@ import tarfile
 import tempfile
 
 # Configuration
+DEBUG=True
 EUPS_VERSION = "2.0.1"
 MINICONDA2_VERSION = "3.19.0.lsst4" # Or most recent?
 CONDA_PACKAGES = ["jupyter"] # In addition to the default LSST install
@@ -289,9 +290,9 @@ if __name__ == "__main__":
 
     # If the stack doesn't already exist, create it.
     if not os.path.exists(ROOT):
-        sm = StackManager.create_stack(ROOT, debug=False)
+        sm = StackManager.create_stack(ROOT, debug=DEBUG)
     else:
-        sm = StackManager(ROOT, debug=False)
+        sm = StackManager(ROOT, debug=DEBUG)
 
     rm = RepositoryManager(pattern=VERSION_GLOB)
 
