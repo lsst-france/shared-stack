@@ -323,9 +323,9 @@ if __name__ == "__main__":
 
     for product in PRODUCTS:
         print("Considering %s" % (product,))
-        available_tags = rm.tags_for_product(product)
+        server_tags = rm.tags_for_product(product)
         installed_tags = sm.tags_for_product(product)
-        candidate_tags = available_tags - installed_tags
+        candidate_tags = server_tags - installed_tags
 
         for tag in candidate_tags:
             print("  Installing %s tagged %s" % (product, tag))
@@ -339,9 +339,11 @@ if __name__ == "__main__":
                 sm.apply_tag(sub_product, version, tag)
 
         # Tag as current based on lexicographic sort of available tags.
-        current_tag = max(available_tags.intersection(sm.tags_for_product(product)))
-        print("  Marking %s %s as current" % (product, current_tag))
-        for sub_product, version in rm.products_for_tag(current_tag):
-            sm.apply_tag(sub_product, version, "current")
+        available_tags = server_tags.intersection(sm.tags_for_product(product))
+        if available_tags: # Could be an empty set
+            current_tag = max(available_tags)
+            print("  Marking %s %s as current" % (product, current_tag))
+            for sub_product, version in rm.products_for_tag(current_tag):
+                sm.apply_tag(sub_product, version, "current")
 
     shutil.rmtree(userdata)
