@@ -237,8 +237,17 @@ class StackManager(object):
         if not self._product_tracker.current("miniconda2"):
             print("Miniconda not available; cannot install %s" % (package,))
             return
-        StackManager._check_output(["conda", "install", "--yes", package],
-                                   env=self.eups_environ, universal_newlines=True)
+        to_exec = ["conda", "install", "--yes", package]
+        if self.debug:
+            print(self.eups_environ)
+            print(to_exec)
+
+        # When installing anaconda, it's necessary to run the same command twice: the
+        # first updates the Miniconda installation, and the second pulls in dependencies.
+        # There should be no downside to doing this in the general case -- worst thing
+        # that happens is the second time is a no-op.
+        StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
+        StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
 
     def tags_for_product(self, product_name):
         return self._product_tracker.tags_for_product(product_name)
