@@ -2,17 +2,18 @@ from __future__ import print_function
 
 import os
 import shutil
+import re
+import subprocess
+import tarfile
+import tempfile
 from lxml import html
+from textwrap import dedent
 try:
     # Python 3
     from urllib.request import urlopen
 except ImportError:
     # Python 2
     from urllib2 import urlopen
-import re
-import subprocess
-import tarfile
-import tempfile
 
 # Configuration
 DEBUG=True
@@ -302,6 +303,17 @@ class StackManager(object):
             sm.conda_install(package)
             if debug:
                 print("Conda package %s installed" % (package,))
+
+        loader_template = dedent("""
+        source %s
+        setup miniconda2
+        """).strip()
+        for lsstSuffix, eupsSuffix in (('sh', 'sh'),
+                                       ('csh', 'csh'),
+                                       ('ksh', 'sh'),
+                                       ('zsh', 'zsh')):
+            with open(os.path.join(stack_dir, "loadLSST.%s" % (lsstSuffix,)), 'w') as f:
+                f.write(loader_template % (os.path.join(stack_dir, "eups", "bin", "setups.%s" % (eupsSuffix,))))
 
         sm.distrib_install("lsst")
         return sm
