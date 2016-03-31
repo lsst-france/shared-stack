@@ -19,7 +19,7 @@ except ImportError:
 DEBUG=True
 EUPS_VERSION = "2.0.1"
 MINICONDA2_VERSION = "3.19.0.lsst4" # Or most recent?
-CONDA_PACKAGES = ["jupyter"] # In addition to the default LSST install
+CONDA_PACKAGES = ["anaconda"] # In addition to the default LSST install
 PRODUCTS = ["lsst_distrib", "afwdata"]
 ROOT = '/ssd/swinbank/stack'
 VERSION_GLOB = r"w_2016_\d\d"
