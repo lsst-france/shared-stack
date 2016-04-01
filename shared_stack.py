@@ -17,7 +17,7 @@ except ImportError:
 
 # Configuration
 DEBUG=True
-EUPS_VERSION = "2.0.1"
+EUPS_VERSION = "2.0.2"
 MINICONDA2_VERSION = "3.19.0.lsst4" # Or most recent?
 CONDA_PACKAGES = ["anaconda"] # In addition to the default LSST install
 PRODUCTS = ["lsst_distrib", "afwdata"]
@@ -289,7 +289,6 @@ class StackManager(object):
         os.makedirs(stack_dir)
 
         # Install EUPS into the stack directory.
-        EUPS_VERSION = "2.0.1"
         EUPS_URL = "https://github.com/RobertLuptonTheGood/eups/archive/%s.tar.gz" % (EUPS_VERSION,)
         eups_download = urlopen(EUPS_URL)
         tf = tarfile.open(fileobj=eups_download, mode="r|gz")
