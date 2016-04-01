@@ -19,7 +19,7 @@ except ImportError:
 DEBUG=True
 EUPS_VERSION = "2.0.2"
 MINICONDA2_VERSION = "3.19.0.lsst4" # Or most recent?
-CONDA_PACKAGES = ["anaconda"] # In addition to the default LSST install
+ANACONDA_VERSION = "2.5.0"
 PRODUCTS = ["lsst_distrib", "afwdata"]
 ROOT = '/ssd/swinbank/stack'
 VERSION_GLOB = r"w_2016_\d\d"
@@ -233,21 +233,26 @@ class StackManager(object):
             print(to_exec)
         return StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
 
-    def conda_install(self, package):
+    def conda(self, action, package_name, version=None):
+        """
+        Perform ``action`` ("install", "remove", etc) on package named
+        ``package_name``. If supplied, version is appended to the package name
+        (thus ``package_name=version``).
+
+        Returns the output from executing the command.
+        """
         if not self._product_tracker.current("miniconda2"):
-            print("Miniconda not available; cannot install %s" % (package,))
+            print("Miniconda not available; cannot %s %s" % (action, package_name))
             return
-        to_exec = ["conda", "install", "--yes", package]
+        if version:
+            package = "%s=%s" % (package_name, version)
+        else:
+            package = package_name
+        to_exec = ["conda", action, "--yes", package]
         if self.debug:
             print(self.eups_environ)
             print(to_exec)
-
-        # When installing anaconda, it's necessary to run the same command twice: the
-        # first updates the Miniconda installation, and the second pulls in dependencies.
-        # There should be no downside to doing this in the general case -- worst thing
-        # that happens is the second time is a no-op.
-        StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
-        StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
+        return StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
 
     def tags_for_product(self, product_name):
         return self._product_tracker.tags_for_product(product_name)
@@ -307,10 +312,17 @@ class StackManager(object):
         sm.apply_tag("miniconda2", MINICONDA2_VERSION, "current")
         if debug:
             print("Miniconda installed.")
-        for package in CONDA_PACKAGES:
-            sm.conda_install(package)
-            if debug:
-                print("Conda package %s installed" % (package,))
+
+        sm.conda("install", "anaconda", ANACONDA_VERSION)
+        for package in "nomkl numpy scipy scikit-learn numexpr".split():
+            sm.conda("install", package)
+        for package in "mkl mkl-service".split():
+            sm.conda("remove", package)
+        # Set the permissions on the Anaconda dir to avoid end users creating undeletable .pyc files.
+        StackManager._check_output(["chmod", "-R", "g-w", os.path.join(stack_dir, determine_flavor(),
+                                                                       "miniconda2", MINICONDA2_VERSION)])
+        if debug:
+            print("Upgraded to Anaconda %s" % (ANACONDA_VERSION,))
 
         loader_template = dedent("""
         source %s
