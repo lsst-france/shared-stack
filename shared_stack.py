@@ -220,9 +220,11 @@ class StackManager(object):
         retcode = process.poll()
         if retcode:
             cmd = kwargs.get("args")
+            print("Failed process output:")
+            print(output)
             if cmd is None:
                 cmd = popenargs[0]
-                raise subprocess.CalledProcessError(retcode, cmd, output=output)
+            raise subprocess.CalledProcessError(retcode, cmd)
         return output
 
     def _run_cmd(self, cmd, *args):
@@ -268,7 +270,7 @@ class StackManager(object):
             args.append(version)
         if tag:
             args.extend(["-t", tag])
-        self._run_cmd("distrib", *args)
+        print(self._run_cmd("distrib", *args))
         self._refresh_products()
 
     def add_global_tag(self, tagname):
