@@ -20,7 +20,7 @@ DEBUG=True
 EUPS_VERSION = "2.0.2"
 MINICONDA2_VERSION = "3.19.0.lsst4" # Or most recent?
 ANACONDA_VERSION = "2.5.0"
-PRODUCTS = ["lsst_distrib", "afwdata"]
+PRODUCTS = ["lsst_distrib"]
 ROOT = '/ssd/swinbank/stack'
 VERSION_GLOB = r"w_2016_\d\d"
 
