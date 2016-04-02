@@ -206,7 +206,10 @@ class StackManager(object):
 
         # If a current version of miniconda2 is available, add it to our
         # environment.
-        miniconda_version = self._product_tracker.current("miniconda2")
+        try:
+            miniconda_version = self._product_tracker.current("miniconda2")
+        except IndexError:
+            miniconda_version = None
         if miniconda_version:
             miniconda_path = os.path.join(self.stack_dir, self.flavor, "miniconda2", miniconda_version)
             self.eups_environ["PATH"] = "%s:%s" % (os.path.join(miniconda_path, "bin"), self.eups_environ["PATH"])
