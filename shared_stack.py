@@ -333,7 +333,7 @@ class StackManager(object):
         source %s
         setup miniconda2
         """).strip()
-        for lsstSuffix, eupsSuffix in (('sh', 'sh'),
+        for lsstSuffix, eupsSuffix in (('bash', 'sh'),
                                        ('csh', 'csh'),
                                        ('ksh', 'sh'),
                                        ('zsh', 'zsh')):
