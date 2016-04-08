@@ -339,7 +339,8 @@ class StackManager(object):
         finally:
             shutil.rmtree(eups_build_dir)
 
-        sm = StackManager(stack_dir, pkgroot=pkgroot, debug=debug)
+        sm = StackManager(stack_dir, pkgroot=pkgroot,
+                          userdata=userdata, debug=debug)
         sm.distrib_install("miniconda2", version=MINICONDA2_VERSION)
         sm.apply_tag("miniconda2", MINICONDA2_VERSION, "current")
         if debug:
