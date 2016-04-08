@@ -16,13 +16,14 @@ except ImportError:
     from urllib2 import urlopen
 
 # Configuration
-DEBUG=True
+DEBUG = True
 EUPS_VERSION = "2.0.2"
-MINICONDA2_VERSION = "3.19.0.lsst4" # Or most recent?
+MINICONDA2_VERSION = "3.19.0.lsst4"  # Or most recent?
 ANACONDA_VERSION = "2.5.0"
 PRODUCTS = ["lsst_distrib"]
 ROOT = '/ssd/swinbank/stack'
 VERSION_GLOB = r"w_2016_\d\d"
+
 
 def determine_flavor():
     """
@@ -55,7 +56,7 @@ class Product(object):
         self._versions = {}
 
     def add_version(self, version):
-        if not version in self._versions:
+        if version not in self._versions:
             self._versions[version] = set()
 
     def add_tag(self, version, tag):
@@ -73,8 +74,8 @@ class Product(object):
 
     def tags(self, version=None):
         """
-        Return a list of tags applied to the product. If ``version`` is not ``None``,
-        return only those tags which refer to ``version``.
+        Return a list of tags applied to the product. If ``version`` is not
+        ``None``, return only those tags which refer to ``version``.
         """
         if version is None:
             return set.union(*self._versions.values())
@@ -91,7 +92,8 @@ class ProductTracker(object):
 
     def tags_for_product(self, product_name):
         """
-        Return the set of all tags which contain a product named ``product_name``.
+        Return the set of all tags which contain a product
+        named ``product_name``.
         """
         try:
             return self._products[product_name].tags()
@@ -136,7 +138,8 @@ class ProductTracker(object):
 
 
 class RepositoryManager(object):
-    def __init__(self, pkgroot="https://sw.lsstcorp.org/eupspkg/", pattern=r".*"):
+    def __init__(self, pkgroot="https://sw.lsstcorp.org/eupspkg/",
+                 pattern=r".*"):
         """
         Only tags which match regular expression ``pattern`` are recorded.
         More tags -> slower loading.
@@ -149,12 +152,14 @@ class RepositoryManager(object):
             if el.text[-5:] == ".list" and re.match(pattern, el.text):
                 u = urlopen(pkgroot + '/tags/' + el.get('href'))
                 for line in u.read().decode('utf-8').strip().split('\n'):
-                    if "EUPS distribution %s version list" % (el.text[:-5]) in line:
+                    if ("EUPS distribution %s version list" %
+                       (el.text[:-5]) in line):
                         continue
                     if line.strip()[0] == "#":
                         continue
                     product, flavor, version = line.split()
-                    self._product_tracker.insert(product, version, el.text[:-5])
+                    self._product_tracker.insert(product, version,
+                                                 el.text[:-5])
 
     def tags_for_product(self, product_name):
         return self._product_tracker.tags_for_product(product_name)
@@ -165,9 +170,12 @@ class RepositoryManager(object):
 
 class StackManager(object):
     """
-    Convenience class for working with an EUPS product stack installed at ``stack_dir``.
+    Convenience class for working with an EUPS product
+    stack installed at ``stack_dir``.
     """
-    def __init__(self, stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg/", userdata=None, debug=True):
+    def __init__(self, stack_dir,
+                 pkgroot="http://sw.lsstcorp.org/eupspkg/",
+                 userdata=None, debug=True):
         self.stack_dir = stack_dir
         self.flavor = determine_flavor()
 
@@ -178,12 +186,14 @@ class StackManager(object):
         # going through setups.sh.
         self.eups_environ = os.environ.copy()
         self.eups_environ.update({
-            "PATH": "%s:%s" % (os.path.join(stack_dir, "eups", "bin"), self.eups_environ['PATH']),
+            "PATH": "%s:%s" % (os.path.join(stack_dir, "eups", "bin"),
+                               self.eups_environ['PATH']),
             "EUPS_PATH": stack_dir,
             "EUPS_DIR": os.path.join(stack_dir, "eups"),
             "EUPS_SHELL": "sh",
             "PYTHONPATH": os.path.join(stack_dir, "eups", "python"),
-            "SETUP_EUPS": "eups LOCAL:%s -f (none) -Z (none)" % (os.path.join(stack_dir, "eups"),),
+            "SETUP_EUPS": ("eups LOCAL:%s -f (none) -Z (none)" %
+                           (os.path.join(stack_dir, "eups"),)),
             "EUPS_PKGROOT": pkgroot
         })
         if userdata:
@@ -195,7 +205,8 @@ class StackManager(object):
         self._product_tracker = ProductTracker()
 
         for line in self._run_cmd("list", "--raw").strip().split('\n'):
-            if line == '': continue
+            if line == '':
+                continue
             product, version, tags = line.split("|")
             if tags == '':
                 self._product_tracker.insert(product, version)
@@ -211,14 +222,18 @@ class StackManager(object):
         except IndexError:
             miniconda_version = None
         if miniconda_version:
-            miniconda_path = os.path.join(self.stack_dir, self.flavor, "miniconda2", miniconda_version)
-            self.eups_environ["PATH"] = "%s:%s" % (os.path.join(miniconda_path, "bin"), self.eups_environ["PATH"])
+            miniconda_path = os.path.join(self.stack_dir, self.flavor,
+                                          "miniconda2", miniconda_version)
+            self.eups_environ["PATH"] = "%s:%s" % (os.path.join(miniconda_path,
+                                                                "bin"),
+                                                   self.eups_environ["PATH"])
 
     @staticmethod
     def _check_output(*popenargs, **kwargs):
         # This is the subprocess.check_output() function from Python 2.7+
         # provided here for compatibility with Python 2.6.
-        process = subprocess.Popen(stdout=subprocess.PIPE, *popenargs, **kwargs)
+        process = subprocess.Popen(stdout=subprocess.PIPE,
+                                   *popenargs, **kwargs)
         output, unused_err = process.communicate()
         retcode = process.poll()
         if retcode:
@@ -236,7 +251,8 @@ class StackManager(object):
         if self.debug:
             print(self.eups_environ)
             print(to_exec)
-        return StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
+        return StackManager._check_output(to_exec, env=self.eups_environ,
+                                          universal_newlines=True)
 
     def conda(self, action, package_name, version=None):
         """
@@ -247,7 +263,8 @@ class StackManager(object):
         Returns the output from executing the command.
         """
         if not self._product_tracker.current("miniconda2"):
-            print("Miniconda not available; cannot %s %s" % (action, package_name))
+            print("Miniconda not available; cannot %s %s" %
+                  (action, package_name))
             return
         if version:
             package = "%s=%s" % (package_name, version)
@@ -257,13 +274,14 @@ class StackManager(object):
         if self.debug:
             print(self.eups_environ)
             print(to_exec)
-        return StackManager._check_output(to_exec, env=self.eups_environ, universal_newlines=True)
+        return StackManager._check_output(to_exec, env=self.eups_environ,
+                                          universal_newlines=True)
 
     def tags_for_product(self, product_name):
         return self._product_tracker.tags_for_product(product_name)
 
     def version_from_tag(self, product_name, tag):
-         for product, version in self._product_tracker.products_for_tag(tag):
+        for product, version in self._product_tracker.products_for_tag(tag):
             if product == product_name:
                 return version
 
@@ -279,7 +297,8 @@ class StackManager(object):
     def add_global_tag(self, tagname):
         startup_path = os.path.join(self.stack_dir, "site", "startup.py")
         with open(startup_path, "a") as startup_py:
-            startup_py.write('hooks.config.Eups.globalTags += ["%s"]\n' % (tagname,))
+            startup_py.write('hooks.config.Eups.globalTags += ["%s"]\n' %
+                             (tagname,))
 
     def tags(self):
         return self._run_cmd("tags").split()
@@ -290,7 +309,8 @@ class StackManager(object):
             self._product_tracker.insert(product_name, version, tagname)
 
     @staticmethod
-    def create_stack(stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg", userdata=None, python="/usr/bin/python", debug=True):
+    def create_stack(stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg",
+                     userdata=None, python="/usr/bin/python", debug=True):
         """
         ``python`` argument is only used for bootstrapping EUPS: we'll install
         Miniconda for working with the stack.
@@ -305,8 +325,15 @@ class StackManager(object):
         eups_build_dir = tempfile.mkdtemp()
         try:
             tf.extractall(eups_build_dir)
-            StackManager._check_output(["./configure", "-prefix=%s/eups" % (stack_dir,), "--with-eups=%s" % (stack_dir,), "--with-python=%s" % (python,)], cwd=os.path.join(eups_build_dir, "eups-%s" % (EUPS_VERSION,)))
-            StackManager._check_output(["make", "install"], cwd=os.path.join(eups_build_dir, "eups-%s" % (EUPS_VERSION,)))
+            StackManager._check_output(["./configure",
+                                        "-prefix=%s/eups" % (stack_dir,),
+                                        "--with-eups=%s" % (stack_dir,),
+                                        "--with-python=%s" % (python,)],
+                                       cwd=os.path.join(eups_build_dir,
+                                                        "eups-%s" % (EUPS_VERSION,)))
+            StackManager._check_output(["make", "install"],
+                                       cwd=os.path.join(eups_build_dir,
+                                                        "eups-%s" % (EUPS_VERSION,)))
             if debug:
                 print("Done installing EUPS %s" % (EUPS_VERSION,))
         finally:
@@ -323,9 +350,12 @@ class StackManager(object):
             sm.conda("install", package)
         for package in "mkl mkl-service".split():
             sm.conda("remove", package)
-        # Set the permissions on the Anaconda dir to avoid end users creating undeletable .pyc files.
-        StackManager._check_output(["chmod", "-R", "g-w", os.path.join(stack_dir, determine_flavor(),
-                                                                       "miniconda2", MINICONDA2_VERSION)])
+        # Set the permissions on the Anaconda dir to avoid end users
+        # creating undeletable .pyc files.
+        StackManager._check_output(["chmod", "-R", "g-w",
+                                    os.path.join(stack_dir, determine_flavor(),
+                                                 "miniconda2",
+                                                 MINICONDA2_VERSION)])
         if debug:
             print("Upgraded to Anaconda %s" % (ANACONDA_VERSION,))
 
@@ -337,8 +367,11 @@ class StackManager(object):
                                        ('csh', 'csh'),
                                        ('ksh', 'sh'),
                                        ('zsh', 'zsh')):
-            with open(os.path.join(stack_dir, "loadLSST.%s" % (lsstSuffix,)), 'w') as f:
-                f.write(loader_template % (os.path.join(stack_dir, "eups", "bin", "setups.%s" % (eupsSuffix,))))
+            with open(os.path.join(stack_dir,
+                      "loadLSST.%s" % (lsstSuffix,)), 'w') as f:
+                f.write(loader_template %
+                        (os.path.join(stack_dir, "eups", "bin",
+                                      "setups.%s" % (eupsSuffix,))))
 
         sm.distrib_install("lsst")
         return sm
@@ -367,7 +400,7 @@ if __name__ == "__main__":
         for tag in candidate_tags:
             print("  Installing %s tagged %s" % (product, tag))
             sm.distrib_install(product, tag=tag)
-            if not tag in sm.tags():
+            if tag not in sm.tags():
                 print("  Adding global tag %s" % (tag,))
                 sm.add_global_tag(tag)
 
@@ -377,7 +410,7 @@ if __name__ == "__main__":
 
         # Tag as current based on lexicographic sort of available tags.
         available_tags = server_tags.intersection(sm.tags_for_product(product))
-        if available_tags: # Could be an empty set
+        if available_tags:  # Could be an empty set
             current_tag = max(available_tags)
             print("  Marking %s %s as current" % (product, current_tag))
             for sub_product, version in rm.products_for_tag(current_tag):
