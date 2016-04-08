@@ -17,6 +17,7 @@ except ImportError:
 
 # Configuration
 DEBUG = True
+EUPS_PKGROOT = "https://sw.lsstcorp.org/eupspkg/"
 EUPS_VERSION = "2.0.2"
 MINICONDA2_VERSION = "3.19.0.lsst4"  # Or most recent?
 ANACONDA_VERSION = "2.5.0"
@@ -138,8 +139,7 @@ class ProductTracker(object):
 
 
 class RepositoryManager(object):
-    def __init__(self, pkgroot="https://sw.lsstcorp.org/eupspkg/",
-                 pattern=r".*"):
+    def __init__(self, pkgroot=EUPS_PKGROOT, pattern=r".*"):
         """
         Only tags which match regular expression ``pattern`` are recorded.
         More tags -> slower loading.
@@ -173,9 +173,8 @@ class StackManager(object):
     Convenience class for working with an EUPS product
     stack installed at ``stack_dir``.
     """
-    def __init__(self, stack_dir,
-                 pkgroot="http://sw.lsstcorp.org/eupspkg/",
-                 userdata=None, debug=True):
+    def __init__(self, stack_dir, pkgroot=EUPS_PKGROOT,
+                 userdata=None, debug=DEBUG):
         self.stack_dir = stack_dir
         self.flavor = determine_flavor()
 
@@ -309,8 +308,8 @@ class StackManager(object):
             self._product_tracker.insert(product_name, version, tagname)
 
     @staticmethod
-    def create_stack(stack_dir, pkgroot="http://sw.lsstcorp.org/eupspkg",
-                     userdata=None, python="/usr/bin/python", debug=True):
+    def create_stack(stack_dir, pkgroot=EUPS_PKGROOT, userdata=None,
+                     python="/usr/bin/python", debug=DEBUG):
         """
         ``python`` argument is only used for bootstrapping EUPS: we'll install
         Miniconda for working with the stack.
@@ -386,9 +385,9 @@ if __name__ == "__main__":
 
     # If the stack doesn't already exist, create it.
     if not os.path.exists(ROOT):
-        sm = StackManager.create_stack(ROOT, userdata=userdata, debug=DEBUG)
+        sm = StackManager.create_stack(ROOT, userdata=userdata)
     else:
-        sm = StackManager(ROOT, userdata=userdata, debug=DEBUG)
+        sm = StackManager(ROOT, userdata=userdata)
 
     rm = RepositoryManager(pattern=VERSION_GLOB)
 
