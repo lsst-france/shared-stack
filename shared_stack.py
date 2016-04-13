@@ -1,3 +1,67 @@
+#!/usr/bin/env python
+#
+# LSST Data Management System
+#
+# Copyright 2008-2016  AURA/LSST.
+#
+# This product includes software developed by the
+# LSST Project (http://www.lsst.org/).
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the LSST License Statement and
+# the GNU General Public License along with this program.  If not,
+# see <https://www.lsstcorp.org/LegalNotices/>.
+#
+"""
+Shared-stack maintenance.
+
+This tool builds and maintains a "shared stack" installation of the LSST
+Science Pipelines. It is designed to run on the LSST developer infrastructure
+(``lsst-dev``, etc); it may be useful elsewhere.
+
+End users looking to install the stack for personal use should prefer the
+procedure described on the `DM Website <http://dm.lsst.org>`_. Developers
+looking to build the latest versions of the LSST code should prefer the `build
+tool <http://developer.lsst.io/en/latest/build-ci/lsstsw.html>`_.
+
+Specifically, when pointed (``ROOT``, defined below) at a
+directory which does not exist, we:
+
+- Install EUPS into that directory;
+- Use ``eups distrib`` to install Miniconda into the directory;
+- Use ``conda install`` to update that Miniconda to a full Anaconda
+  installation;
+- Create shell initialization scripts which set up EUPS and the Anaconda
+  Python installation (``loadLSST.bash``, ``.csh``, ``.ksh``, ``.zsh``).
+- Proceed with the stack maintenance procedure, defined below.
+
+When ``ROOT`` exists and contains an installed version of EUPS, the following
+maintainance procedure is followed:
+
+- Contact the EUPS distribution server (``EUPS_PKGROOT``, below), retrieving a
+  the contents of all tags that match the ``VERSION_GLOB`` expression.
+- For all specified products (``PRODUCTS``, below), identify tags retrieved
+  from the server which have not been installed and install them.
+- Sort the installed tags lexicographically and tag the most recent as
+  "current".
+
+This tool requires Python (tested with 2.6, 2.7 and 3.5) and `lxml
+<http://lxml.de/>`_; the latter may be conveniently installed using ``pip``::
+
+  $ pip install -r requirements.txt
+
+All configuration is performed by editing the ``CONFIGURATION`` block below;
+there are no command line options at this time.
+"""
 from __future__ import print_function
 
 import os
@@ -15,20 +79,45 @@ except ImportError:
     # Python 2
     from urllib2 import urlopen
 
-# Configuration
+#
+# CONFIGURATION
+#
+
+# Set to True to output detailed information on commands being executed and
+# their environment.
 DEBUG = True
+
+# Package distribution server to use.
 EUPS_PKGROOT = "https://sw.lsstcorp.org/eupspkg/"
+
+# Version of the EUPS to install when creating a new stack. Should correspond
+# to a tag defined at https://github.com/RobertLuptonTheGood/eups.
 EUPS_VERSION = "2.0.2"
-MINICONDA2_VERSION = "3.19.0.lsst4"  # Or most recent?
+
+# Version of LSST's miniconda2 package to install. Should correspond to a
+# version distributed through ``EUPS_PKGROOT``.
+MINICONDA2_VERSION = "3.19.0.lsst4"
+
+# Version of Anaconda to install. Should correspond to the version of
+# Miniconda defined above.
 ANACONDA_VERSION = "2.5.0"
+
+# Top-level products to install into the stack.
 PRODUCTS = ["lsst_distrib"]
-ROOT = '/ssd/swinbank/stack'
+
+# Root directory in which the stack will be created or updated.
+ROOT = '/ssd/lsstsw/stack'
+
+# Only tags matching this regular expression will be fetched from
+# ``EUPS_PKGROOT`` and hence considered for local installation. The more tags
+# are matched, the slower things will be.
 VERSION_GLOB = r"w_2016_\d\d"
 
 
 def determine_flavor():
     """
     Return a string representing the 'flavor' of the local system.
+
     Based on the equivalent logic in EUPS, but without introducing an EUPS
     dependency.
     """
@@ -48,6 +137,12 @@ def determine_flavor():
 
 
 class Product(object):
+    """
+    Information about a particular EUPS product.
+
+    This includes the the product name, the available versions and their
+    associated tags (if any).
+    """
     def __init__(self, name):
         self.name = name
 
@@ -139,6 +234,9 @@ class ProductTracker(object):
 
 
 class RepositoryManager(object):
+    """
+    Provide access to a ProductTracker built on a remote repository.
+    """
     def __init__(self, pkgroot=EUPS_PKGROOT, pattern=r".*"):
         """
         Only tags which match regular expression ``pattern`` are recorded.
@@ -170,11 +268,29 @@ class RepositoryManager(object):
 
 class StackManager(object):
     """
-    Convenience class for working with an EUPS product
-    stack installed at ``stack_dir``.
+    Tools for working with an EUPS product stack.
+
+    Includes the functionality of a ProductTracker together with routines for
+    creating and manipulating the stack.
     """
     def __init__(self, stack_dir, pkgroot=EUPS_PKGROOT,
                  userdata=None, debug=DEBUG):
+        """
+        Create a StackManager to manage the stack in ``stack_dir``.
+
+        ``stack_dir`` should already exist and contain an EUPS installation
+        (see StackManager.create_stack() if it doesn't).
+
+        Use the remote ``pkgroot`` as a distribution server when installing
+        new products.
+
+        Store user data (e.g. the EUPS cache) in ``userdata``, rather than the
+        current user's home directory, if supplied. This means that multiple
+        StackManagers can be operated by the same user simultaneously without
+        conflict.
+
+        Write verbose debugging information if ``debug`` is ``True``.
+        """
         self.stack_dir = stack_dir
         self.flavor = determine_flavor()
 
@@ -201,6 +317,12 @@ class StackManager(object):
         self._refresh_products()
 
     def _refresh_products(self):
+        """
+        Update the list of products we track in this stack.
+
+        Should be run whenever the stack state is changed (e.g. by installing
+        new products).
+        """
         self._product_tracker = ProductTracker()
 
         for line in self._run_cmd("list", "--raw").strip().split('\n'):
@@ -227,24 +349,10 @@ class StackManager(object):
                                                                 "bin"),
                                                    self.eups_environ["PATH"])
 
-    @staticmethod
-    def _check_output(*popenargs, **kwargs):
-        # This is the subprocess.check_output() function from Python 2.7+
-        # provided here for compatibility with Python 2.6.
-        process = subprocess.Popen(stdout=subprocess.PIPE,
-                                   *popenargs, **kwargs)
-        output, unused_err = process.communicate()
-        retcode = process.poll()
-        if retcode:
-            cmd = kwargs.get("args")
-            print("Failed process output:")
-            print(output)
-            if cmd is None:
-                cmd = popenargs[0]
-            raise subprocess.CalledProcessError(retcode, cmd)
-        return output
-
     def _run_cmd(self, cmd, *args):
+        """
+        Run an ``eups`` command to manipulate the local stack.
+        """
         to_exec = ['eups', '--nolocks', cmd]
         to_exec.extend(args)
         if self.debug:
@@ -280,11 +388,20 @@ class StackManager(object):
         return self._product_tracker.tags_for_product(product_name)
 
     def version_from_tag(self, product_name, tag):
+        """
+        Return the version of ``product_name`` which is tagged ``tag``.
+        """
         for product, version in self._product_tracker.products_for_tag(tag):
             if product == product_name:
                 return version
 
     def distrib_install(self, product_name, version=None, tag=None):
+        """
+        Use ``eups distrib`` to install ``product_name``.
+
+        If ``version`` and/or ``tag`` are specified, ask for them explicitly.
+        Otherwise, accept the defaults.
+        """
         args = ["install", "--no-server-tags", product_name]
         if version:
             args.append(version)
@@ -294,15 +411,31 @@ class StackManager(object):
         self._refresh_products()
 
     def add_global_tag(self, tagname):
+        """
+        Add a global tag to the stack's startup.py file.
+
+        Note that it is -- with some exceptions -- only possible to tag
+        products with tags that have been pre-declared in startup.py.
+        Therefore, we need to call this before we can use ``apply_tag()``.
+        """
         startup_path = os.path.join(self.stack_dir, "site", "startup.py")
         with open(startup_path, "a") as startup_py:
             startup_py.write('hooks.config.Eups.globalTags += ["%s"]\n' %
                              (tagname,))
 
     def tags(self):
+        """
+        Return a list of all tags in the stack.
+        """
         return self._run_cmd("tags").split()
 
     def apply_tag(self, product_name, version, tagname):
+        """
+        Apply ``tagname`` to ``version`` of ``product_name``.
+
+        Note that ``tagname`` must generally have been
+        pre-declared using ``add_global_tag()``.
+        """
         if self._product_tracker.has_version(product_name, version):
             self._run_cmd("declare", "-t", tagname, product_name, version)
             self._product_tracker.insert(product_name, version, tagname)
@@ -311,8 +444,15 @@ class StackManager(object):
     def create_stack(stack_dir, pkgroot=EUPS_PKGROOT, userdata=None,
                      python="/usr/bin/python", debug=DEBUG):
         """
-        ``python`` argument is only used for bootstrapping EUPS: we'll install
-        Miniconda for working with the stack.
+        Bootstrap a stack in ``stack_dir``.
+
+        ``stack_dir`` should not already exist. We will install EUPS and
+        Anaconda in it, returning an initialized StackManager.
+
+        The ``python`` argument is only used for bootstrapping EUPS: for
+        working with the stack, we will use Anaconda.
+
+        Other arguments are as for ``StackManager.__init__()``.
         """
         # Refuses to proceed if ``stack_dir`` already exists.
         os.makedirs(stack_dir)
@@ -376,8 +516,28 @@ class StackManager(object):
         sm.distrib_install("lsst")
         return sm
 
+    @staticmethod
+    def _check_output(*popenargs, **kwargs):
+        """
+        Run an external command, check its exit status, and return its output.
+        """
+        # This is effectively  subprocess.check_output() function from
+        # Python 2.7+ provided here for compatibility with Python 2.6.
+        process = subprocess.Popen(stdout=subprocess.PIPE,
+                                   *popenargs, **kwargs)
+        output, unused_err = process.communicate()
+        retcode = process.poll()
+        if retcode:
+            cmd = kwargs.get("args")
+            print("Failed process output:")
+            print(output)
+            if cmd is None:
+                cmd = popenargs[0]
+            raise subprocess.CalledProcessError(retcode, cmd)
+        return output
 
-if __name__ == "__main__":
+
+def main():
     # We create a temporary directory for the EUPS cache etc. This means we
     # can run multiple instances of StackManager simultaneously without them
     # clobbering each other.
@@ -417,3 +577,7 @@ if __name__ == "__main__":
                 sm.apply_tag(sub_product, version, "current")
 
     shutil.rmtree(userdata)
+
+
+if __name__ == "__main__":
+    main()
