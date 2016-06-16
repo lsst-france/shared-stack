@@ -112,7 +112,7 @@ ROOT = '/ssd/lsstsw/stack'
 # Only tags matching this regular expression will be fetched from
 # ``EUPS_PKGROOT`` and hence considered for local installation. The more tags
 # are matched, the slower things will be.
-VERSION_GLOB = r"w_2016_\d\d"
+VERSION_GLOB = r"w_2016_\d\d|v12_\d(_rc\d)?"
 
 
 def determine_flavor():
