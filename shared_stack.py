@@ -51,8 +51,8 @@ maintainance procedure is followed:
   the contents of all tags that match the ``VERSION_GLOB`` expression.
 - For all specified products (``PRODUCTS``, below), identify tags retrieved
   from the server which have not been installed and install them.
-- Sort the installed tags lexicographically and tag the most recent as
-  "current".
+- Sort the installed tags by date they were created on the server and tag the
+  most recent as "current".
 
 This tool requires Python (tested with 2.6, 2.7 and 3.5) and `lxml
 <http://lxml.de/>`_; the latter may be conveniently installed using ``pip``::
@@ -70,6 +70,7 @@ import re
 import subprocess
 import tarfile
 import tempfile
+from datetime import datetime
 from lxml import html
 from textwrap import dedent
 try:
@@ -243,12 +244,16 @@ class RepositoryManager(object):
         More tags -> slower loading.
         """
         self._product_tracker = ProductTracker()
+        self.tag_dates = {}
         self.pkgroot = pkgroot
 
         h = html.parse(urlopen(self.pkgroot + "/tags"))
         for el in h.findall("./body/pre/a"):
             if el.text[-5:] == ".list" and re.match(pattern, el.text):
                 u = urlopen(pkgroot + '/tags/' + el.get('href'))
+                tag_date = datetime.strptime(u.info()['last-modified'],
+                                             "%a, %d %b %Y %H:%M:%S %Z")
+                self.tag_dates[el.text[:-5]] = tag_date
                 for line in u.read().decode('utf-8').strip().split('\n'):
                     if ("EUPS distribution %s version list" %
                        (el.text[:-5]) in line):
@@ -568,10 +573,11 @@ def main():
             for sub_product, version in rm.products_for_tag(tag):
                 sm.apply_tag(sub_product, version, tag)
 
-        # Tag as current based on lexicographic sort of available tags.
+        # Tag as current based on date ordering on server.
         available_tags = server_tags.intersection(sm.tags_for_product(product))
         if available_tags:  # Could be an empty set
-            current_tag = max(available_tags)
+            current_tag = max(available_tags,
+                              key=lambda tag: rm.tag_dates[tag])
             print("  Marking %s %s as current" % (product, current_tag))
             for sub_product, version in rm.products_for_tag(current_tag):
                 sm.apply_tag(sub_product, version, "current")
