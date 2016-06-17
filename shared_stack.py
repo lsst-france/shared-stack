@@ -86,7 +86,7 @@ except ImportError:
 
 # Set to True to output detailed information on commands being executed and
 # their environment.
-DEBUG = True
+DEBUG = False
 
 # Package distribution server to use.
 EUPS_PKGROOT = "https://sw.lsstcorp.org/eupspkg/"
