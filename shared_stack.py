@@ -494,7 +494,11 @@ class StackManager(object):
         for package in "nomkl numpy scipy scikit-learn numexpr".split():
             sm.conda("install", package)
         for package in "mkl mkl-service".split():
-            sm.conda("remove", package)
+            try:
+                sm.conda("remove", package)
+            except subprocess.CalledProcessError:
+                print("Failed to remove conda package %s;" % (package, ), end=" ")
+                print("pressing on regardless.")
         # Set the permissions on the Anaconda dir to avoid end users
         # creating undeletable .pyc files.
         StackManager._check_output(["chmod", "-R", "g-w",
