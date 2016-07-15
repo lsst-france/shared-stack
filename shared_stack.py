@@ -59,8 +59,9 @@ This tool requires Python (tested with 2.6, 2.7 and 3.5) and `lxml
 
   $ pip install -r requirements.txt
 
-All configuration is performed by editing the ``CONFIGURATION`` block below;
-there are no command line options at this time.
+With the exception of the target directory, which can be over-ridden on the
+command line, all configuration is performed by editing the ``CONFIGURATION``
+block below.
 """
 from __future__ import print_function
 
@@ -70,6 +71,7 @@ import re
 import subprocess
 import tarfile
 import tempfile
+from argparse import ArgumentParser
 from datetime import datetime
 from lxml import html
 from textwrap import dedent
@@ -546,17 +548,17 @@ class StackManager(object):
         return output
 
 
-def main():
+def main(stack_dir):
     # We create a temporary directory for the EUPS cache etc. This means we
     # can run multiple instances of StackManager simultaneously without them
     # clobbering each other.
     userdata = tempfile.mkdtemp()
 
     # If the stack doesn't already exist, create it.
-    if not os.path.exists(ROOT):
-        sm = StackManager.create_stack(ROOT, userdata=userdata)
+    if not os.path.exists(stack_dir):
+        sm = StackManager.create_stack(stack_dir, userdata=userdata)
     else:
-        sm = StackManager(ROOT, userdata=userdata)
+        sm = StackManager(stack_dir, userdata=userdata)
 
     rm = RepositoryManager(pattern=VERSION_GLOB)
 
@@ -590,4 +592,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = ArgumentParser(description="Maintain a shared EUPS stack.")
+    parser.add_argument('--root', help="target directory", default=ROOT)
+    main(parser.parse_args().root)
