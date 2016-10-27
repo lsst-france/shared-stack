@@ -71,7 +71,7 @@ import subprocess
 import tarfile
 import tempfile
 from datetime import datetime
-from lxml import html
+# from lxml import html
 from textwrap import dedent
 try:
     # Python 3
