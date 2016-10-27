@@ -73,7 +73,7 @@ import tarfile
 import tempfile
 from argparse import ArgumentParser
 from datetime import datetime
-from lxml import html
+# from lxml import html
 from textwrap import dedent
 try:
     # Python 3
